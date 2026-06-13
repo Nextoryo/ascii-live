@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DIBU MARTINEZ · L'Arrêt du Siècle · CDM 2022</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --scanline: rgba(255,255,255,0.018);
+    }
+
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      font-family: 'Courier New', Courier, monospace;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* subtle CRT scanlines overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        var(--scanline) 2px,
+        var(--scanline) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #screen {
+      white-space: pre;
+      font-size: clamp(8px, 1.55vw, 13.5px);
+      line-height: 1.42;
+      letter-spacing: 0.04em;
+      transition: color 0.25s ease, text-shadow 0.25s ease;
+      user-select: none;
+    }
+
+    /* colour themes per frame */
+    .c-title  { color: #c792ea; text-shadow: 0 0 14px #c792ea55; }
+    .c-ctx    { color: #89b4fa; text-shadow: 0 0 10px #89b4fa33; }
+    .c-field  { color: #b4b4b4; text-shadow: none; }
+    .c-tense  { color: #f9e2af; text-shadow: 0 0 10px #f9e2af44; }
+    .c-shot   { color: #ff9f68; text-shadow: 0 0 14px #ff9f6855; }
+    .c-save   { color: #a6e3a1; text-shadow: 0 0 22px #a6e3a1aa, 0 0 50px #a6e3a155; }
+    .c-glory  { color: #ffd700; text-shadow: 0 0 24px #ffd700bb, 0 0 60px #ffd70044; }
+
+    /* full-screen flash on THE SAVE frame */
+    @keyframes saveFlash {
+      0%   { background: #080808; }
+      8%   { background: #003800; }
+      20%  { background: #080808; }
+      32%  { background: #002a00; }
+      100% { background: #080808; }
+    }
+    body.flash { animation: saveFlash 0.9s ease forwards; }
+
+    /* blink for the save text */
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100%{ opacity: 0.2; }
+    }
+    .c-save { animation: blink 0.7s step-end 3; animation-fill-mode: forwards; }
+    /* re-apply after first cycle to keep visible */
+    .c-save-steady { color: #a6e3a1; text-shadow: 0 0 22px #a6e3a1aa, 0 0 50px #a6e3a155; }
+
+    #dots {
+      display: flex;
+      gap: 5px;
+      margin-top: 14px;
+    }
+    .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .dot.on {
+      background: #777;
+      box-shadow: 0 0 6px #777;
+    }
+
+    #controls {
+      margin-top: 10px;
+      font-size: clamp(7px, 1vw, 10px);
+      color: #303030;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <pre id="screen" class="c-title"></pre>
+  <div id="dots"></div>
+  <div id="controls">[ espace ] pause &nbsp;·&nbsp; [ ← → ] frame &nbsp;·&nbsp; [ R ] restart</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+//  FRAMES  (72 chars wide, ~18 lines each)
+//  color   → classe CSS appliquée au <pre>
+//  delay   → ms avant de passer à la frame suivante
+//  flash   → true → déclenche l'animation de fond verte
+// ─────────────────────────────────────────────────────────────────────────────
+
+const F = [
+
+// ═══ 0 · TITRE ═══════════════════════════════════════════════════════════════
+{ color:'c-title', delay:2800, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║  ██████╗██████╗ ███╗   ███╗   ██████╗ ██████╗ ██████╗ ██████╗     ║
+║ ██╔════╝██╔══██╗████╗ ████║   ╚════██╗██╔══██╗╚════██╗╚════██╗    ║
+║ ██║     ██║  ██║██╔████╔██║    █████╔╝██████╔╝ █████╔╝ █████╔╝    ║
+║ ██║     ██║  ██║██║╚██╔╝██║   ██╔═══╝ ██╔══██╗██╔═══╝  ╚═══██╗   ║
+║ ╚██████╗██████╔╝██║ ╚═╝ ██║   ███████╗██║  ██║███████╗██████╔╝    ║
+║  ╚═════╝╚═════╝ ╚═╝     ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝╚═════╝     ║
+║                                                                      ║
+║                  C O U P E   D U   M O N D E                        ║
+║                          Q A T A R  2022                            ║
+║                                                                      ║
+║                   FRANCE  ░░  3 - 3  ░░  ARGENTINE                  ║
+║                      ── 118ème MINUTE ──                            ║
+║                                                                      ║
+║            Randal KOLO MUANI face au gardien argentin...            ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 1 · CONTEXTE ════════════════════════════════════════════════════════════
+{ color:'c-ctx', delay:2200, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║  FINALE CDM 2022 · LUSAIL STADIUM · 88 966 spectateurs              ║
+║  ──────────────────────────────────────────────────────────────────  ║
+║                                                                      ║
+║  FRANCE  3  -  3  ARGENTINE                         [ 118' 00" ]    ║
+║                                                                      ║
+║  Marqueurs :  Mbappé  x3 (79', 80', 118' pen.)                      ║
+║               Messi  x2 (23' pen, 108')   Di María (36')            ║
+║                                                                      ║
+║  ──────────────────────────────────────────────────────────────────  ║
+║                                                                      ║
+║  KOLO MUANI (entré en jeu à la 41ème du temps réglementaire)        ║
+║  se retrouve SEUL devant Emiliano "DIBU" MARTÍNEZ.                  ║
+║                                                                      ║
+║  Si le ballon rentre... la FRANCE gagne la Coupe du Monde.          ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 2 · VUE DE CÔTÉ — POSITION INITIALE ════════════════════════════════════
+{ color:'c-field', delay:1100, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                                ║
+║  │    o  MARTÍNEZ   │                                   \o/         ║
+║  │   /|\  (ARG #23) │                                   /|\         ║
+║  │   / \            │                                  / \          ║
+║  │                  │                                               ║
+║  └──────────────────┘ · · · · · · · · · · · · · ●  · · · ·        ║
+║                                                  (ballon)           ║
+║  ◄ BUT                                                               ║
+║                                                                      ║
+║                          KOLO MUANI contrôle le ballon →            ║
+║                                                                      ║
+║  Il est à 6 mètres du but.  Seul.  Devant Dibu.                    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 3 · KOLO MUANI SE RETOURNE ═════════════════════════════════════════════
+{ color:'c-field', delay:900, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                                ║
+║  │    o  MARTÍNEZ   │                              o/               ║
+║  │   /|\  sortit?   │                              |\ ←  il pivote  ║
+║  │   / \            │                              /                ║
+║  │                  │                                               ║
+║  └──────────────────┘ · · · · · · · · · · · · ●  · · · · · ·      ║
+║                                                                      ║
+║  ◄ BUT                                                               ║
+║                                                                      ║
+║          DIBU ne sort pas — il bloque son angle, attend...          ║
+║                                                                      ║
+║          KOLO MUANI se retourne, ballon dans les pieds...           ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 4 · PRÊT À FRAPPER ══════════════════════════════════════════════════════
+{ color:'c-tense', delay:800, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                                ║
+║  │    o  MARTÍNEZ   │                        o                      ║
+║  │   /|\   (recule) │                       /|→  PRÊT À FRAPPER !! ║
+║  │   / \            │                      ●/|                      ║
+║  │                  │                        |\                     ║
+║  └──────────────────┘ · · · · · · · · · · · · · · · · · · · ·     ║
+║                                                                      ║
+║  ◄ BUT                                                               ║
+║                                                                      ║
+║  KOLO MUANI arme sa frappe...  distance : 2 mètres du but.         ║
+║                                                                      ║
+║  !! Un but ici et la France est CHAMPIONNE DU MONDE !!              ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 5 · LA FRAPPE !!! ═══════════════════════════════════════════════════════
+{ color:'c-shot', delay:550, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                                ║
+║  │    o  MARTÍNEZ   │           ●←←←←←←←←←←←  o/                  ║
+║  │   /|\            │                           /|   IL FRAPPE !!   ║
+║  │   / \            │                            \                  ║
+║  │                  │                                               ║
+║  └──────────────────┘ · · · · · · · · · · · · · · · · · · · ·     ║
+║                                                                      ║
+║  ◄ BUT                          **** F R A P P E  !!! ****          ║
+║                                                                      ║
+║  Tir tendu, bas, vers le premier poteau...                          ║
+║                                                                      ║
+║  Le monde entier retient son souffle.                               ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 6 · LE BALLON FILE VERS LE BUT ══════════════════════════════════════════
+{ color:'c-shot', delay:400, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                                ║
+║  │    o  MARTÍNEZ   │  ●←←←←←←←←←←←←←←←←←←←←←←←←←←←←           ║
+║  │   /|\  !!        │                                                ║
+║  │   / \            │                                               ║
+║  │                  │                                               ║
+║  └──────────────────┘ · · · · · · · · · · · · · · · · · · · ·     ║
+║                                                                      ║
+║  ◄ BUT                      → → →  LE BALLON ARRIVE ! → → →        ║
+║                                                                      ║
+║  Le tir est cadré.  Puissant.  Vers le bas du premier poteau.       ║
+║                                                                      ║
+║  88 966 spectateurs... SILENCE.                                      ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 7 · MARTINEZ S'ÉLANCE ═══════════════════════════════════════════════════
+{ color:'c-shot', delay:400, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  FRANCE 3 - 3 ARGENTINE                                  [ 118' ]   ║
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │ ●←←                                           ║
+║  │  o               │                                               ║
+║  │  |───────────────╪  MARTÍNEZ S'ÉTEND !!!                        ║
+║  │   \              │                                               ║
+║  │    \═════════════╪  (jambe droite au ras du sol)                ║
+║  └──────────────────┘ · · · · · · · · · · · · · · · · · · · ·     ║
+║                                                                      ║
+║  ◄ BUT                             *** DIBU S'ÉLANCE !!! ***        ║
+║                                                                      ║
+║  Il plonge... étire sa jambe... jusqu'au poteau...                  ║
+║                                                                      ║
+║  Peut-il y arriver ???                                              ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 8 · L'ARRÊT !!! ═════════════════════════════════════════════════════════
+{ color:'c-save', delay:2500, flash:true, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║  │▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔│                                               ║
+║  │                  │                                               ║
+║  │  o               │                                               ║
+║  │  |───────────────╫⊛   ←  LE PIED DE DIBU STOPPE LE BALLON !    ║
+║  │   \              ││                                              ║
+║  │    \═════════════╫│   ⊛ = ballon bloqué à la ligne de but       ║
+║  └──────────────────┘│                                              ║
+║  ────────────────────┘                                              ║
+║                                                                      ║
+║  ◄ BUT    SAUVÉ !                                                    ║
+║                                                                      ║
+║  ★ ★ ★   L ' A R R Ê T  !!!   D I B U  M A R T Í N E Z  ★ ★ ★   ║
+║                                                                      ║
+║      Le gardien le plus important de l'histoire du football.        ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 9 · EXPLOSION DE JOIE ═══════════════════════════════════════════════════
+{ color:'c-save', delay:2000, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║  *   .       ✦        *      .        ✦    *       .      *        ║
+║      ╔══════════════════════════════════════════════════╗            ║
+║ .    ║                                                  ║    .      ║
+║      ║     I L   L ' A   A R R Ê T É  ! ! !           ║            ║
+║  *   ║                                                  ║  *        ║
+║      ║       EMILIANO  "DIBU"  MARTÍNEZ                ║            ║
+║      ║            Gardien légendaire                    ║            ║
+║  .   ╚══════════════════════════════════════════════════╝   .       ║
+║                                                                      ║
+║      \o/   \o/   \o/      "VAMOS ARGENTINA !!!"                     ║
+║       |     |     |                                                  ║
+║      / \   / \   / \   ← coéquipiers de Martínez                   ║
+║                                                                      ║
+║  ✦       *    .       *      ✦        .       *    .      ✦        ║
+║                                                                      ║
+║                      La Coupe du Monde se jouera aux TAB.           ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 10 · VICTOIRE AUX TIRS AU BUT ══════════════════════════════════════════
+{ color:'c-glory', delay:2800, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║  TIRS AU BUT :  FRANCE  2  —  ARGENTINE  4                          ║
+║                                                                      ║
+║  ██████╗██╗  ██╗ █████╗ ███╗   ███╗██████╗    ╦                   ║
+║ ██╔════╝██║  ██║██╔══██╗████╗ ████║██╔══██╗   ║                   ║
+║ ██║     ███████║███████║██╔████╔██║██████╔╝   ╠═ CHAMPIONNE       ║
+║ ██║     ██╔══██║██╔══██║██║╚██╔╝██║██╔═══╝    ║                   ║
+║ ╚██████╗██║  ██║██║  ██║██║ ╚═╝ ██║██║        ╩   DU MONDE        ║
+║  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝                            ║
+║                                                                      ║
+║                   ══════  3ème ÉTOILE  ══════                       ║
+║                                                                      ║
+║   DIBU MARTINEZ — Meilleur gardien du tournoi                       ║
+║   Arrêt sur Kolo Muani : décisif pour l'histoire.                   ║
+║                                                                      ║
+║   "El más grande.  VAMOS ARGENTINA !"                               ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+},
+
+// ═══ 11 · CRÉDITS ════════════════════════════════════════════════════════════
+{ color:'c-title', delay:3200, text:
+`╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║                                                                      ║
+║      "Le plus grand arrêt de l'histoire du football"                ║
+║                                                                      ║
+║      — FINALE CDM 2022 · QATAR · 18 DÉCEMBRE 2022 —                ║
+║                                                                      ║
+║                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░                      ║
+║                ░                            ░                       ║
+║                ░   EMILIANO DIBU MARTÍNEZ   ░                       ║
+║                ░   A R G E N T I N A A A   ░                       ║
+║                ░                            ░                       ║
+║                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░                      ║
+║                                                                      ║
+║                                                                      ║
+║              ASCII animation · CDM 2022 · [ boucle ] →             ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝`
+}
+
+]; // fin des frames
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MOTEUR D'ANIMATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+const screen = document.getElementById('screen');
+const dotsEl = document.getElementById('dots');
+
+// Crée les dots de progression
+F.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot';
+  d.id = 'dot-' + i;
+  dotsEl.appendChild(d);
+});
+
+let current = 0;
+let paused  = false;
+let timer   = null;
+let saveTimeout = null;
+
+function showFrame(i) {
+  const frame = F[i];
+  current = i;
+
+  // met à jour le texte
+  screen.textContent = frame.text;
+
+  // enlève toutes les classes couleur
+  screen.className = '';
+  screen.classList.add(frame.color);
+
+  // flash de fond pour le frame "arrêt"
+  if (frame.flash) {
+    document.body.classList.remove('flash');
+    void document.body.offsetWidth; // force reflow
+    document.body.classList.add('flash');
+  }
+
+  // après le blink du save, rend le texte stable
+  if (frame.color === 'c-save') {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      screen.className = 'c-save-steady';
+    }, 2200);
+  }
+
+  // met à jour les dots
+  document.querySelectorAll('.dot').forEach((d, idx) => {
+    d.classList.toggle('on', idx === i);
+  });
+}
+
+function schedule() {
+  clearTimeout(timer);
+  if (!paused) {
+    timer = setTimeout(() => {
+      const next = (current + 1) % F.length;
+      showFrame(next);
+      schedule();
+    }, F[current].delay);
+  }
+}
+
+function goTo(i) {
+  showFrame(i);
+  schedule();
+}
+
+// ─── contrôles clavier ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  switch (e.key) {
+    case ' ':
+    case 'Spacebar':
+      paused = !paused;
+      if (!paused) schedule();
+      else clearTimeout(timer);
+      e.preventDefault();
+      break;
+    case 'ArrowRight':
+      goTo((current + 1) % F.length);
+      break;
+    case 'ArrowLeft':
+      goTo((current - 1 + F.length) % F.length);
+      break;
+    case 'r':
+    case 'R':
+      paused = false;
+      goTo(0);
+      break;
+  }
+});
+
+// ─── contrôles tactiles (swipe) ──────────────────────────────────────────────
+let touchX = null;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 40) {
+    goTo(dx < 0
+      ? (current + 1) % F.length
+      : (current - 1 + F.length) % F.length);
+  }
+  touchX = null;
+});
+
+// ─── démarrage ───────────────────────────────────────────────────────────────
+showFrame(0);
+schedule();
+</script>
+</body>
+</html>
